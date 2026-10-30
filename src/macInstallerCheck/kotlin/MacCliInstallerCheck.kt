@@ -29,7 +29,11 @@ fun main() {
     for (path in paths) {
         val script = CliPathInstaller.macInstallScript(path)
         // Independently decode the AppleScript string literal, rejecting unescaped quotes.
-        val literal = script.substringAfter("do script \"").substringBeforeLast("\"\nend tell")
+        check(script.startsWith("do shell script \""))
+        check(script.endsWith("\" with administrator privileges"))
+        check(!script.contains("tell application"))
+        val literal = script.substringAfter("do shell script \"")
+            .substringBeforeLast("\" with administrator privileges")
         val decoded = StringBuilder()
         var i = 0
         while (i < literal.length) {
@@ -40,11 +44,11 @@ fun main() {
                 decoded.append(literal[i++])
             } else decoded.append(ch)
         }
-        check(decoded.startsWith("sudo mkdir -p /usr/local/bin && sudo ln -sf "))
+        check(decoded.startsWith("/bin/mkdir -p /usr/local/bin && /bin/ln -sf "))
         if (shell != null) {
             // Replace the installation operation with printf: verify the shell sees
             // exactly one executable argument, with no expansion or execution.
-            val args = decoded.toString().substringAfter("sudo ln -sf ")
+            val args = decoded.toString().substringAfter("/bin/ln -sf ")
             val proc = ProcessBuilder(shell).start()
             proc.outputStream.bufferedWriter().use { it.write("printf '%s\\000' $args\n") }
             val output = proc.inputStream.readBytes().toString(Charsets.UTF_8)
