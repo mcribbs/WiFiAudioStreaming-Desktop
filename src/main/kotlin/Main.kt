@@ -5155,6 +5155,21 @@ fun startGuiApplication(cliArgs: CliArgs) = application {
         windowState.isMinimized = false
     }
 
+    // Keep Dock policy outside Window so start-minimized works before first show.
+    LaunchedEffect(isWindowVisible) {
+        MacApplication.setWindowVisible(isWindowVisible)
+    }
+    DisposableEffect(Unit) {
+        val desktop = if (System.getProperty("os.name").lowercase().contains("mac") &&
+            java.awt.Desktop.isDesktopSupported()) java.awt.Desktop.getDesktop() else null
+        val canReopen = desktop?.isSupported(java.awt.Desktop.Action.APP_EVENT_REOPENED) == true
+        val reopenListener = java.awt.desktop.AppReopenedListener { showAndRaise() }
+        if (canReopen) desktop?.addAppEventListener(reopenListener)
+        onDispose {
+            if (canReopen) desktop?.removeAppEventListener(reopenListener)
+        }
+    }
+
     // Se l'avvio era "minimizzato nella tray" ma la tray non si e' materializzata,
     // la finestra torna visibile: meglio una finestra non richiesta che un
     // processo senza interfaccia.
