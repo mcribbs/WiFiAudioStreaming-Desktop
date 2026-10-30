@@ -1,0 +1,42 @@
+name: macOS test build
+on:
+  push:
+    branches: [build/macos-cli-dialog-test]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify installer script on macOS
+        run: ./gradlew checkMacCliInstaller --console=plain
+      - name: Build app and disk image
+        run: ./gradlew createReleaseDistributable packageReleaseDmg packagePortableArchives --console=plain
+      - name: Record source and package checksums
+        run: |
+          git rev-parse HEAD > build/packages/SOURCE-COMMIT.txt
+          shasum -a 256 build/packages/*.zip build/packages/*.tar.gz > build/packages/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WFAS-macos-${{ matrix.arch }}-test
+          path: |
+            build/compose/binaries/main-release/dmg/*.dmg
+            build/packages/*.zip
+            build/packages/*.tar.gz
+            build/packages/SOURCE-COMMIT.txt
+            build/packages/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
